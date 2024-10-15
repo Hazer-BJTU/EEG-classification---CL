@@ -35,8 +35,8 @@ parser.add_argument('--buffer_size', type=int, nargs='?', default=16, help='numb
 parser.add_argument('--channels_num', type=int, nargs='?', default=2, help='number of channels')
 parser.add_argument('--generator_lr', type=float, nargs='?', default=1e-5, help='learning rate for GAN')
 parser.add_argument('--visualize', type=bool, nargs='?', default=True, help='enable generative visualization')
-parser.add_argument('--wgan_c', type=float, nargs='?', default=0.01, help='lower and upper bound of wgan parameters')
-parser.add_argument('--n_critic', type=int, nargs='?', default=4, help='number of critic steps per epoch')
+parser.add_argument('--wgan_c', type=float, nargs='?', default=1e-4, help='lower and upper bound of wgan parameters')
+parser.add_argument('--n_critic', type=int, nargs='?', default=5, help='number of critic steps per epoch')
 parser.add_argument('--cgr_coef', type=float, nargs='?', default=10, help='coefficient for cgr L_N')
 args = parser.parse_args()
 

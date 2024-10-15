@@ -93,9 +93,9 @@ class CGRnetwork(NaiveCLnetwork):
         self.optimizerD.zero_grad()
         z = torch.randn((X.shape[0], X.shape[1], 128), dtype=torch.float32, requires_grad=False, device=self.device)
         X_fake = self.generator(z, y)
-        pred_d = self.discriminator(X_fake * var + mean, y)
+        pred_d = self.discriminator(X_fake, y)
         L_G = -torch.mean(pred_d)
-        self.generative_loss[0] += L_G.item()
+        self.generative_loss[0] += L_G.item() * 1000
         pred_n = self.net(X_fake * var + mean)
         L_N = self.mseloss(pred_n, y_hat.detach()) * self.args.cgr_coef
         (L_G + L_N).backward()
@@ -105,10 +105,10 @@ class CGRnetwork(NaiveCLnetwork):
         for critic in range(self.args.n_critic):
             self.optimizerG.zero_grad()
             self.optimizerD.zero_grad()
-            pred_t = self.discriminator(X, y)
-            pred_g = self.discriminator(X_fake.detach() * var + mean, y)
+            pred_t = self.discriminator(((X - mean) / (var + 1e-5)), y)
+            pred_g = self.discriminator(X_fake.detach(), y)
             L_D = torch.mean(pred_g) - torch.mean(pred_t)
-            self.generative_loss[1] += L_D.item() / self.args.n_critic
+            self.generative_loss[1] += L_D.item() / self.args.n_critic * 1000
             L_D.backward()
             nn.utils.clip_grad_norm_(self.discriminator.parameters(), max_norm=20, norm_type=2)
             self.optimizerD.step()
@@ -149,7 +149,7 @@ class CGRnetwork(NaiveCLnetwork):
                 for idx in range(datas.shape[1]):
                     image1 = datas[0][idx].detach()
                     image2 = datas_fake[0][idx].detach()
-                    image3 = torch.rand(image1.shape, dtype=torch.float32, requires_grad=False, device=self.device)
+                    image3 = torch.randn(image1.shape, dtype=torch.float32, requires_grad=False, device=self.device)
                     image3 = image3 * var + mean
                     minn = torch.min(image1).item()
                     maxn = torch.max(image1 - minn).item()
