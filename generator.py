@@ -102,7 +102,6 @@ class Generator(nn.Module):
         Z = self.linear(Z)
         Z = torch.unsqueeze(Z.view(batch_size, seq_length, -1), dim=2)
         Z = self.cnn(Z)
-        Z = self.tanh(Z)
         Z = Z.transpose(2, 3)
         return Z
 

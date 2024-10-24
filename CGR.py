@@ -21,6 +21,7 @@ class CGRnetwork(NaiveCLnetwork):
         self.optimizerG, self.optimizerD = None, None
         self.schedulerG, self.schedulerD = None, None
         self.mseloss = torch.nn.MSELoss()
+        self.bceloss = torch.nn.BCEWithLogitsLoss()
         self.generative_loss = [0, 0, 0]
         self.generator.to(self.device)
         self.discriminator.to(self.device)
@@ -34,8 +35,8 @@ class CGRnetwork(NaiveCLnetwork):
                                             dtype=torch.float32, requires_grad=False, device=self.device)
         self.generator.apply(init_weight)
         self.discriminator.apply(init_weight)
-        self.optimizerG = torch.optim.RMSprop(self.generator.parameters(), lr=self.args.generator_lr)
-        self.optimizerD = torch.optim.RMSprop(self.discriminator.parameters(), lr=self.args.generator_lr)
+        self.optimizerG = torch.optim.Adam(self.generator.parameters(), lr=self.args.generator_lr)
+        self.optimizerD = torch.optim.Adam(self.discriminator.parameters(), lr=self.args.generator_lr)
         self.schedulerG = torch.optim.lr_scheduler.StepLR(self.optimizerG, max(self.args.num_epochs // 6, 1), 0.6)
         self.schedulerD = torch.optim.lr_scheduler.StepLR(self.optimizerD, max(self.args.num_epochs // 6, 1), 0.6)
 
@@ -89,33 +90,36 @@ class CGRnetwork(NaiveCLnetwork):
         mean = self.running_mean
         var = (self.running_mean_sqr - self.running_mean.pow(2)) * (self.observed_samples / (self.observed_samples - 1))
         var = var.pow(0.5)
+        for n_generator in range(self.args.n_generator):
+            self.optimizerG.zero_grad()
+            self.optimizerD.zero_grad()
+            z = torch.randn((X.shape[0], X.shape[1], 128), dtype=torch.float32, requires_grad=False, device=self.device)
+            target = torch.ones(X.shape[0], dtype=torch.float32, requires_grad=False, device=self.device)
+            X_fake = self.generator(z, y)
+            pred_d = self.discriminator(X_fake, y)
+            L_G = self.bceloss(pred_d.view(-1), target)
+            self.generative_loss[0] += L_G.item()
+            pred_n = self.net(X_fake * var + mean)
+            L_N = self.mseloss(pred_n, y_hat.detach()) * self.args.cgr_coef
+            (L_G + L_N).backward()
+            nn.utils.clip_grad_norm_(self.generator.parameters(), max_norm=20, norm_type=2)
+            self.optimizerG.step()
+        '''train discriminator'''
         self.optimizerG.zero_grad()
         self.optimizerD.zero_grad()
         z = torch.randn((X.shape[0], X.shape[1], 128), dtype=torch.float32, requires_grad=False, device=self.device)
-        X_fake = self.generator(z, y)
-        pred_d = self.discriminator(X_fake, y)
-        L_G = -torch.mean(pred_d)
-        self.generative_loss[0] += L_G.item() * 1000
-        pred_n = self.net(X_fake * var + mean)
-        L_N = self.mseloss(pred_n, y_hat.detach()) * self.args.cgr_coef
-        (L_G + L_N).backward()
-        nn.utils.clip_grad_norm_(self.generator.parameters(), max_norm=20, norm_type=2)
-        self.optimizerG.step()
-        '''train discriminator'''
-        for critic in range(self.args.n_critic):
-            self.optimizerG.zero_grad()
-            self.optimizerD.zero_grad()
-            pred_t = self.discriminator(((X - mean) / (var + 1e-5)), y)
-            pred_g = self.discriminator(X_fake.detach(), y)
-            L_D = torch.mean(pred_g) - torch.mean(pred_t)
-            self.generative_loss[1] += L_D.item() / self.args.n_critic * 1000
-            L_D.backward()
-            nn.utils.clip_grad_norm_(self.discriminator.parameters(), max_norm=20, norm_type=2)
-            self.optimizerD.step()
-            for param in self.discriminator.parameters():
-                param.data.clamp_(-self.args.wgan_c, self.args.wgan_c)
+        target_t = torch.ones(X.shape[0], dtype=torch.float32, requires_grad=False, device=self.device)
+        target_g = torch.zeros(X.shape[0], dtype=torch.float32, requires_grad=False, device=self.device)
+        X_fake = self.generator(z, y).detach()
+        pred_t = self.discriminator(((X - mean) / (var + 1e-5)), y)
+        pred_g = self.discriminator(X_fake, y)
+        L_D = self.bceloss(pred_t.view(-1), target_t) + self.bceloss(pred_g.view(-1), target_g)
+        self.generative_loss[1] += L_D.item()
+        L_D.backward()
+        nn.utils.clip_grad_norm_(self.discriminator.parameters(), max_norm=20, norm_type=2)
+        self.optimizerD.step()
         '''validation'''
-        pred_n = self.net(X_fake.detach() * var + mean)
+        pred_n = self.net(X_fake * var + mean)
         L_N = torch.sum(self.loss(pred_n, y.view(-1))) / X.shape[0]
         self.generative_loss[2] += L_N.item()
 
