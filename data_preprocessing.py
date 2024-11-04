@@ -18,6 +18,8 @@ def load_data_isruc1(filepath, window_size, channels, total_num):
         X = None
         for channel in channels:
             data_resampled = signal.resample(raw_data[channel], 3000, axis=1)
+            mu, sigma = np.mean(data_resampled, axis=1, keepdims=True), np.std(data_resampled, axis=1, keepdims=True)
+            data_resampled = (data_resampled - mu) / sigma
             print(f'calculating stft for channel {channel} in isruc1...')
             _, _, Zxx = signal.stft(data_resampled, 100, 'hann', 256)
             Zxx = 20 * np.log10(np.abs(Zxx))
@@ -57,6 +59,8 @@ def load_data_shhs(filepath, window_size, channels, total_num):
         for idx in range(raw_data_trans.shape[0]):
             series = raw_data_trans[idx]
             series = series.reshape(sleep_epoch_num, 3000)
+            mu, sigma = np.mean(series, axis=1, keepdims=True), np.std(series, axis=1, keepdims=True)
+            series = (series - mu) / sigma
             print(f'calculating stft for channel index {idx} in shhs...')
             _, _, Zxx = signal.stft(series, 100, 'hann', 256)
             Zxx = 20 * np.log10(np.abs(Zxx))
@@ -92,6 +96,8 @@ def load_data_mass(filepath, window_size, channels, total_num):
         X = None
         for idx in range(raw_data_trans.shape[0]):
             series = raw_data_trans[idx]
+            mu, sigma = np.mean(series, axis=1, keepdims=True), np.std(series, axis=1, keepdims=True)
+            series = (series - mu) / sigma
             print(f'calculating stft for channel index {idx} in mass...')
             _, _, Zxx = signal.stft(series, 100, 'hann', 256)
             Zxx = 20 * np.log10(np.abs(Zxx))
@@ -133,6 +139,8 @@ def load_data_sleepedf(filepath, window_size, channels, total_num):
         X = None
         for idx in range(raw_data_trans.shape[0]):
             series = raw_data_trans[idx]
+            mu, sigma = np.mean(series, axis=1, keepdims=True), np.std(series, axis=1, keepdims=True)
+            series = (series - mu) / sigma
             print(f'calculating stft for channel index {idx} in sleepedf...')
             _, _, Zxx = signal.stft(series, 100, 'hann', 256)
             Zxx = 20 * np.log10(np.abs(Zxx))
